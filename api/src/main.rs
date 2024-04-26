@@ -1,60 +1,47 @@
-use axum ::{
-    routing::{get, post},
-    http::StatusCode,
-    Json, Router,
+use axum::{
+    routing::{get},
+    Router,
+    handler::Handler,
+    response::Json,
 };
-use serde::{Deserialize, Serialize};
-
-
-//Use Axum framework to make an API
-
-//          /http-GET
-//         /classes
-//        /classes http-GET
-//       /classes http-POST
+use serde::Deserialize;
+use reqwest::Client;
+use std::error::Error;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     println!("Hello, world!");
     tracing_subscriber::fmt::init();
 
-    let app = Router::new()
-        .route("/", get(root))
-        .route("/classes", get(get_classes))
-        .route("/classes", post(create_class));
+    let app = Router::new().route("/", get(get_joke));
 
-        let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-        axum::serve(listener, app).await.unwrap();
+    let addr = "0.0.0.0:3000".parse()?;
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await?;
+
+    Ok(())
 }
 
-async fn root() -> &'static str {
-    "Hello, world!"
-}
+async fn get_joke() -> Json<String> {
+    let client = Client::new();
+    let response = client
+        .get("https://api.chucknorris.io/jokes/random")
+        .send()
+        .await
+        .expect("Failed to fetch Chuck Norris joke");
 
-async fn create_class(
-    Json(payload): Json<CreateClass>,
-) -> (StatusCode, Json<Class>) {
-    let class = Class {
-        crn: 3550,
-        name: payload.name,
-
-    };
-
-    (StatusCode::CREATED, Json(class))
+    if response.status().is_success() {
+        let body = response.text().await.expect("Failed to read response body");
+        let joke: ChuckNorrisJoke = serde_json::from_str(&body)
+            .expect("Failed to deserialize Chuck Norris joke");
+        Json(joke.value)
+    } else {
+        Json("Failed to fetch Chuck Norris joke".to_string())
+    }
 }
 
 #[derive(Deserialize)]
-struct CreateClass {
-    name: String,
+struct ChuckNorrisJoke {
+    value: String,
 }
-
-#[derive(Serialize)]
-struct Class {
-    crn: u64,
-    name: String,
-}
-
-async fn get_classes() -> &'static str {
-    "class_list"
-}
-
