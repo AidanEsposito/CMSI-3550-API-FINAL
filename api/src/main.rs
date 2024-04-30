@@ -1,8 +1,7 @@
 use axum::{
     routing::{get},
     Router,
-    handler::Handler,
-    response::Json,
+    response::{ Json},
 };
 use serde::Deserialize;
 use reqwest::Client;
@@ -15,11 +14,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let app = Router::new().route("/", get(get_joke));
 
-    let addr = "0.0.0.0:3000".parse()?;
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
-
+    // let addr = "0.0.0.0:3000".parse()?;
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
     Ok(())
 }
 
